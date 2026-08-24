@@ -7,7 +7,7 @@ Held-out evaluation design:
 import asyncio
 import csv
 import json
-import time
+import random
 import uuid
 from datetime import datetime, timezone
 
@@ -19,8 +19,8 @@ from src import config
 CSV_PATH = config.DATASET_PATH
 TIME_SPAN = 172_792.0          # seconds covered by the dataset (48h)
 TRAIN_FRACTION = 0.8
-SPEEDUP = 500.0                # replay 48h in ~6 min
-MAX_TPS = 200                  # cap throughput
+STREAM_DELAY = (4.0, 5.0)      # seconds between streamed txns (live demo pacing)
+MAX_STREAM = 10_000            # cap the demo stream at 10K transactions
 
 
 class RealTransaction(BaseModel):
@@ -66,24 +66,20 @@ def stream_rows(csv_path: str = CSV_PATH):
 
 
 async def replay_stream(producer: AIOKafkaProducer) -> None:
-    """Stream held-out rows to Kafka, preserving relative timing (compressed)."""
-    wall_start = time.monotonic()
+    """Stream held-out rows to Kafka — one txn every 4–5s, capped at 10K."""
     sent = 0
-    for data_elapsed, amount, v, is_fraud in stream_rows():
-        # Pace events to compressed real timing, capped at MAX_TPS
-        target = wall_start + data_elapsed / SPEEDUP
-        now = time.monotonic()
-        if target > now:
-            await asyncio.sleep(min(target - now, 1.0 / MAX_TPS))
-
+    for _, amount, v, is_fraud in stream_rows():
+        if sent >= MAX_STREAM:
+            break
         txn = RealTransaction(amount=amount, v_features=v, is_fraud=is_fraud)
         await producer.send(
             config.KAFKA_TOPIC,
             json.dumps(txn.model_dump()).encode("utf-8"),
         )
         sent += 1
-        if sent % 5000 == 0:
-            print(f"[replay] {sent} transactions streamed...")
+        if sent % 100 == 0:
+            print(f"[replay] {sent}/{MAX_STREAM} transactions streamed...")
+        await asyncio.sleep(random.uniform(*STREAM_DELAY))
 
     print(f"[replay] done — {sent} held-out transactions streamed")
 
