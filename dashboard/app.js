@@ -5,73 +5,76 @@ const WS_TXNS = API_BASE.replace(/^http/, 'ws') + '/ws/transactions';
 let reconnectDelay = 1000;
 let txnCount = 0;
 
-function setStatus(text, colorClass) {
+const SEV_DOT = { high: 'bg-red-500', medium: 'bg-amber-500', low: 'bg-sky-500' };
+
+function setStatus(live) {
     const el = document.getElementById('connection-status');
-    el.textContent = text;
-    el.className = `inline-block px-2 py-1 rounded text-xs mt-2 ${colorClass}`;
+    if (live) {
+        el.innerHTML = '<span class="w-2 h-2 rounded-full bg-emerald-500 live-dot"></span> live';
+    } else {
+        el.innerHTML = '<span class="w-2 h-2 rounded-full bg-red-500"></span> reconnecting';
+    }
 }
 
-function badge(predicted, actual) {
-    if (predicted && actual) return '<span class="text-green-400 font-bold">TP</span>';
-    if (predicted && !actual) return '<span class="text-yellow-400 font-bold">FP</span>';
-    if (!predicted && actual) return '<span class="text-red-400 font-bold">FN</span>';
-    return '<span class="text-gray-500">TN</span>';
+function verdictBadge(predicted, actual) {
+    if (predicted && actual)  return '<span class="text-emerald-400">TP</span>';
+    if (predicted && !actual) return '<span class="text-amber-400">FP</span>';
+    if (!predicted && actual) return '<span class="text-red-400">FN</span>';
+    return '<span class="text-neutral-700">·</span>';
 }
 
 function prependTxn(t) {
     const tbody = document.getElementById('txn-table');
     const tr = document.createElement('tr');
-    const rowClass = t.is_fraud_actual ? 'bg-red-900/30' : (t.predicted_fraud ? 'bg-yellow-900/20' : '');
-    tr.className = `border-b border-gray-700/50 ${rowClass}`;
+    const highlight = t.is_fraud_actual ? 'bg-red-500/5' : (t.predicted_fraud ? 'bg-amber-500/5' : '');
+    tr.className = `border-b border-neutral-800/50 ${highlight}`;
     tr.innerHTML = `
-        <td class="py-1 text-gray-400">${new Date(t.timestamp * 1000).toLocaleTimeString()}</td>
-        <td class="text-right font-mono">€${t.amount.toFixed(2)}</td>
-        <td class="text-center">${t.predicted_fraud ? '🚨 fraud' : '—'}</td>
-        <td class="text-center">${badge(t.predicted_fraud, t.is_fraud_actual)}</td>
+        <td class="py-1.5 text-neutral-500">${new Date(t.timestamp * 1000).toLocaleTimeString()}</td>
+        <td class="text-right text-neutral-200">€${t.amount.toFixed(2)}</td>
+        <td class="text-center">${t.predicted_fraud ? '<span class="text-red-400">fraud</span>' : '<span class="text-neutral-700">–</span>'}</td>
+        <td class="text-center">${verdictBadge(t.predicted_fraud, t.is_fraud_actual)}</td>
     `;
     tbody.prepend(tr);
-    if (tbody.children.length > 100) tbody.lastChild.remove();
+    if (tbody.children.length > 200) tbody.lastChild.remove();
     txnCount++;
-    document.getElementById('txn-count').textContent = `(${txnCount})`;
+    document.getElementById('txn-count').textContent = txnCount.toLocaleString();
 }
 
 function prependAlert(alert) {
     const container = document.getElementById('alerts-container');
-    if (container.children[0]?.textContent === 'Waiting for alerts...') {
-        container.innerHTML = '';
-    }
+    if (container.children[0]?.textContent === 'Waiting for alerts…') container.innerHTML = '';
 
-    const severityColors = { high: 'bg-red-600', medium: 'bg-yellow-600', low: 'bg-blue-600' };
-    const truthBadge = alert.is_true_fraud
-        ? '<span class="text-green-400 text-xs">✓ true fraud</span>'
-        : '<span class="text-yellow-400 text-xs">⚠ false positive</span>';
-    const amount = alert.amount !== undefined ? `€${alert.amount.toFixed(2)}` : '';
+    const truth = alert.is_true_fraud
+        ? '<span class="text-emerald-400">true fraud</span>'
+        : '<span class="text-amber-400">false positive</span>';
+    const amount = alert.amount !== undefined ? ` · €${alert.amount.toFixed(2)}` : '';
+
     const div = document.createElement('div');
-    div.className = 'p-3 rounded bg-gray-700 border-l-4 ' + (severityColors[alert.severity] || 'bg-gray-600');
+    div.className = 'flex items-start gap-3 p-3 rounded-xl bg-neutral-900/60 border border-neutral-800/60';
     div.innerHTML = `
-        <div class="flex justify-between items-start">
-            <div>
-                <span class="font-mono text-xs">${alert.txn_ids?.[0] || ''}</span>
-                <span class="text-xs text-gray-400 ml-2">${new Date(alert.timestamp * 1000).toLocaleTimeString()}</span>
+        <span class="w-1.5 h-1.5 rounded-full mt-1.5 shrink-0 ${SEV_DOT[alert.severity] || 'bg-neutral-600'}"></span>
+        <div class="min-w-0 flex-1">
+            <div class="flex justify-between items-baseline gap-2">
+                <span class="text-xs text-neutral-400 truncate font-mono">${alert.txn_ids?.[0] || ''}</span>
+                <span class="text-[10px] text-neutral-600 shrink-0">${new Date(alert.timestamp * 1000).toLocaleTimeString()}</span>
             </div>
-            <span class="text-xs px-2 py-0.5 rounded ${severityColors[alert.severity] || 'bg-gray-600'}">${alert.severity.toUpperCase()}</span>
+            <div class="text-xs mt-1 text-neutral-500">score ${alert.anomaly_score.toFixed(3)}${amount} · ${truth}</div>
         </div>
-        <div class="text-sm mt-1">Score: ${alert.anomaly_score.toFixed(3)} ${amount} ${truthBadge}</div>
     `;
     container.prepend(div);
-    if (container.children.length > 50) container.lastChild.remove();
+    if (container.children.length > 100) container.lastChild.remove();
 }
 
 function connectAlerts() {
     const ws = new WebSocket(WS_ALERTS);
-    ws.onopen = () => { setStatus('Live', 'bg-green-600'); reconnectDelay = 1000; };
+    ws.onopen = () => { setStatus(true); reconnectDelay = 1000; };
     ws.onmessage = (e) => { prependAlert(JSON.parse(e.data)); updateMetrics(); };
     ws.onclose = () => {
-        setStatus('Disconnected — reconnecting...', 'bg-red-600');
+        setStatus(false);
         setTimeout(connectAlerts, reconnectDelay);
         reconnectDelay = Math.min(reconnectDelay * 2, 30000);
     };
-    ws.onerror = () => setStatus('Error', 'bg-red-600');
+    ws.onerror = () => setStatus(false);
 }
 
 function connectTxns() {
@@ -86,30 +89,25 @@ function connectTxns() {
 async function updateMetrics() {
     try {
         const res = await fetch(API_BASE + '/metrics');
-        const data = await res.json();
-        document.getElementById('precision').textContent = data.precision.toFixed(3);
-        document.getElementById('recall').textContent = data.recall.toFixed(3);
-        document.getElementById('f1').textContent = data.f1.toFixed(3);
-        document.getElementById('total-alerts').textContent = data.total_alerts;
-    } catch (e) {
-        console.error('Metrics fetch failed:', e);
-    }
+        const d = await res.json();
+        document.getElementById('precision').textContent = d.precision.toFixed(3);
+        document.getElementById('recall').textContent = d.recall.toFixed(3);
+        document.getElementById('f1').textContent = d.f1.toFixed(3);
+        document.getElementById('total-alerts').textContent = d.total_alerts;
+    } catch (e) { /* keep stale values */ }
 }
 
 async function loadBackfill() {
     try {
         const [alerts, txns] = await Promise.all([
-            fetch(API_BASE + '/alerts?limit=20').then(r => r.json()),
-            fetch(API_BASE + '/transactions/recent?limit=50').then(r => r.json()),
+            fetch(API_BASE + '/alerts?limit=50').then(r => r.json()),
+            fetch(API_BASE + '/transactions/recent?limit=100').then(r => r.json()),
         ]);
         alerts.reverse().forEach(prependAlert);
-        txns.reverse().forEach(t => { prependTxn(t); });
-    } catch (e) {
-        console.error('Backfill failed:', e);
-    }
+        txns.reverse().forEach(prependTxn);
+    } catch (e) { /* first load before data exists is fine */ }
 }
 
-// Init
 connectAlerts();
 connectTxns();
 updateMetrics();

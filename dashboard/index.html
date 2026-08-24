@@ -5,55 +5,90 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Keyhole — Fraud Spike Detector</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { background: #0a0a0a; }
+        .bento { background: #111113; border: 1px solid #1f1f23; border-radius: 16px; }
+        .scroll-thin::-webkit-scrollbar { width: 6px; }
+        .scroll-thin::-webkit-scrollbar-thumb { background: #2a2a2e; border-radius: 3px; }
+        @keyframes pulse-dot { 0%,100% { opacity: 1; } 50% { opacity: .3; } }
+        .live-dot { animation: pulse-dot 1.5s infinite; }
+    </style>
 </head>
-<body class="bg-gray-900 text-gray-100 min-h-screen">
-    <div class="container mx-auto px-4 py-6">
-        <header class="mb-8">
-            <h1 class="text-3xl font-bold text-red-400">🔑 Keyhole</h1>
-            <p class="text-gray-400">Real-time Fraud Spike Detection — Razorpay AI Buildathon</p>
-            <div id="connection-status" class="inline-block px-2 py-1 rounded text-xs mt-2 bg-yellow-600">Connecting...</div>
+<body class="text-neutral-300 min-h-screen antialiased">
+    <div class="max-w-7xl mx-auto px-6 py-6">
+
+        <!-- Header -->
+        <header class="flex items-center justify-between mb-6">
+            <div class="flex items-center gap-3">
+                <span class="text-xl">🔑</span>
+                <h1 class="text-lg font-semibold text-neutral-100 tracking-tight">Keyhole</h1>
+                <span class="text-xs text-neutral-600">real-time fraud detection · buildathon demo</span>
+            </div>
+            <div id="connection-status" class="flex items-center gap-2 text-xs text-neutral-500">
+                <span class="w-2 h-2 rounded-full bg-yellow-500"></span> connecting
+            </div>
         </header>
 
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-            <div class="bg-gray-800 p-4 rounded-lg">
-                <div class="text-gray-400 text-sm">Precision</div>
-                <div id="precision" class="text-2xl font-bold text-green-400">-</div>
+        <!-- Metrics bento row -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+            <div class="bento p-4">
+                <div class="text-[11px] uppercase tracking-wider text-neutral-500">Precision</div>
+                <div id="precision" class="text-3xl font-mono font-medium text-neutral-100 mt-1">–</div>
             </div>
-            <div class="bg-gray-800 p-4 rounded-lg">
-                <div class="text-gray-400 text-sm">Recall</div>
-                <div id="recall" class="text-2xl font-bold text-blue-400">-</div>
+            <div class="bento p-4">
+                <div class="text-[11px] uppercase tracking-wider text-neutral-500">Recall</div>
+                <div id="recall" class="text-3xl font-mono font-medium text-neutral-100 mt-1">–</div>
             </div>
-            <div class="bg-gray-800 p-4 rounded-lg">
-                <div class="text-gray-400 text-sm">F1 Score</div>
-                <div id="f1" class="text-2xl font-bold text-purple-400">-</div>
+            <div class="bento p-4">
+                <div class="text-[11px] uppercase tracking-wider text-neutral-500">F1 Score</div>
+                <div id="f1" class="text-3xl font-mono font-medium text-neutral-100 mt-1">–</div>
             </div>
-            <div class="bg-gray-800 p-4 rounded-lg">
-                <div class="text-gray-400 text-sm">Total Alerts</div>
-                <div id="total-alerts" class="text-2xl font-bold text-red-400">-</div>
+            <div class="bento p-4">
+                <div class="text-[11px] uppercase tracking-wider text-neutral-500">Alerts</div>
+                <div id="total-alerts" class="text-3xl font-mono font-medium text-red-400 mt-1">–</div>
             </div>
         </div>
 
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div class="bg-gray-800 p-4 rounded-lg">
-                <h2 class="text-lg font-semibold mb-3">Live Fraud Alerts</h2>
-                <div id="alerts-container" class="space-y-2 max-h-96 overflow-y-auto">
-                    <p class="text-gray-500">Waiting for alerts...</p>
+        <!-- Main panes -->
+        <div class="grid grid-cols-1 lg:grid-cols-5 gap-3">
+
+            <!-- Fraud alerts: 2/5 width, tall -->
+            <div class="bento p-5 lg:col-span-2 flex flex-col h-[75vh]">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-sm font-medium text-neutral-100">Fraud Alerts</h2>
+                    <span class="text-[11px] text-neutral-600">dedup · severity-ranked</span>
+                </div>
+                <div id="alerts-container" class="space-y-2 overflow-y-auto scroll-thin flex-1 pr-1">
+                    <p class="text-neutral-600 text-sm">Waiting for alerts…</p>
                 </div>
             </div>
 
-            <div class="bg-gray-800 p-4 rounded-lg">
-                <h2 class="text-lg font-semibold mb-3">Live Transactions <span id="txn-count" class="text-xs text-gray-500">(0)</span></h2>
-                <div class="overflow-x-auto max-h-96 overflow-y-auto">
-                    <table class="w-full text-sm">
-                        <thead class="text-gray-400 border-b border-gray-700 sticky top-0 bg-gray-800">
-                            <tr><th class="text-left py-1">Time</th><th class="text-right">Amount</th><th>Predicted</th><th>Actual</th></tr>
+            <!-- Live transactions: 3/5 width, tall -->
+            <div class="bento p-5 lg:col-span-3 flex flex-col h-[75vh]">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-sm font-medium text-neutral-100">Live Transactions</h2>
+                    <span id="txn-count" class="text-[11px] text-neutral-600 font-mono">0</span>
+                </div>
+                <div class="overflow-y-auto scroll-thin flex-1 pr-1">
+                    <table class="w-full text-[13px]">
+                        <thead class="text-neutral-600 text-[11px] uppercase tracking-wider sticky top-0 bg-[#111113]">
+                            <tr>
+                                <th class="text-left py-2 font-medium">Time</th>
+                                <th class="text-right font-medium">Amount</th>
+                                <th class="text-center font-medium">Prediction</th>
+                                <th class="text-center font-medium">Verdict</th>
+                            </tr>
                         </thead>
-                        <tbody id="txn-table"></tbody>
+                        <tbody id="txn-table" class="font-mono"></tbody>
                     </table>
                 </div>
             </div>
         </div>
+
+        <footer class="mt-4 text-[11px] text-neutral-700 flex justify-between">
+            <span>held-out evaluation · kaggle creditcardfraud · isolation forest</span>
+            <span>defense-only · honest metrics</span>
+        </footer>
     </div>
 
     <script src="app.js"></script>
