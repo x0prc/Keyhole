@@ -53,4 +53,5 @@ services:
       REDIS_URL: redis://redis:6379
     volumes:
       - ./models:/app/models
+      - ./data:/app/data:ro
       - ./dashboard:/app/dashboard:ro
