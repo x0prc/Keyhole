@@ -27,7 +27,7 @@ function prependTxn(t) {
     const tbody = document.getElementById('txn-table');
     const tr = document.createElement('tr');
     const highlight = t.is_fraud_actual ? 'bg-red-500/5' : (t.predicted_fraud ? 'bg-amber-500/5' : '');
-    tr.className = `border-b border-neutral-800/50 ${highlight}`;
+    tr.className = `border-b border-neutral-800/50 tnum ${highlight}`;
     tr.innerHTML = `
         <td class="py-1.5 text-neutral-500">${new Date(t.timestamp * 1000).toLocaleTimeString()}</td>
         <td class="text-right text-neutral-200">€${t.amount.toFixed(2)}</td>
@@ -55,7 +55,7 @@ function prependAlert(alert) {
         <span class="w-1.5 h-1.5 rounded-full mt-1.5 shrink-0 ${SEV_DOT[alert.severity] || 'bg-neutral-600'}"></span>
         <div class="min-w-0 flex-1">
             <div class="flex justify-between items-baseline gap-2">
-                <span class="text-xs text-neutral-400 truncate font-mono">${alert.txn_ids?.[0] || ''}</span>
+                <span class="text-xs text-neutral-400 truncate tnum">${alert.txn_ids?.[0] || ''}</span>
                 <span class="text-[10px] text-neutral-600 shrink-0">${new Date(alert.timestamp * 1000).toLocaleTimeString()}</span>
             </div>
             <div class="text-xs mt-1 text-neutral-500">score ${alert.anomaly_score.toFixed(3)}${amount} · ${truth}</div>
