@@ -16,3 +16,4 @@ env/
 *.log
 data/*.csv
 data/*.zip
+PITCH.md
