@@ -26,7 +26,7 @@ Real-time fraud spike detection system for the Razorpay AI Buildathon Track 02 �
 ┌─────────────────┐     ┌──────────────┐     ┌──────────────────┐
 │  Transaction    │────▶│   Kafka      │────▶│  Detection       │
 │  Generator      │     │  (events)    │     │  Worker          │
-│  (synthetic)    │     └──────────────┘     │  - Feature eng   │
+│  (dataset)      │     └──────────────┘     │  - Feature eng   │
 └─────────────────┘                          │  - Isolation     │
                                              │    Forest score  │
                                              │  - Alert rules   │

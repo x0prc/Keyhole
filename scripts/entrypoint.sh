@@ -4,7 +4,7 @@
 set -e
 
 # Auto-train on real data if model bundle is missing
-if [ ! -f "/app/models/isolation_forest.joblib" ]; then
+if [ ! -f "/app/models/model.joblib" ]; then
     echo "🔧 Model not found. Training on real dataset (normal rows, first 80% of time)..."
     python -m scripts.train_model
     echo "✅ Training complete."

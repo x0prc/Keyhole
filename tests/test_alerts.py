@@ -1,11 +1,18 @@
-"""Tests for alerting system."""
+"""Tests for alerting."""
+import json
 import pytest
 import pytest_asyncio
 import fakeredis.aioredis
 
-from src.alerts import should_alert, create_alert, Alert
-from src.features import FeatureVector
-from src.generator import Transaction
+from src.alerts import create_real_alert, _severity
+
+
+class FakeTxn:
+    txn_id = "txn_test"
+    timestamp = 1700000000.0
+    amount = 149.62
+    currency = "EUR"
+    is_fraud = True
 
 
 @pytest_asyncio.fixture
@@ -17,26 +24,17 @@ async def redis_client():
     await client.aclose()
 
 
-@pytest.mark.asyncio
-async def test_deduplication(redis_client):
-    assert await should_alert(redis_client, "merch_001") is True
-    assert await should_alert(redis_client, "merch_001") is False
+def test_severity_bands():
+    assert _severity(-0.9) == "high"
+    assert _severity(-0.5) == "medium"
+    assert _severity(-0.1) == "low"
 
 
 @pytest.mark.asyncio
-async def test_create_alert(redis_client):
-    txn = Transaction(
-        merchant_id="merch_001",
-        amount=1000,
-        card_id="card_001",
-        device_id="dev_001",
-        ip_address="103.21.58.1",
-        city="Bangalore",
-        is_fraud=True,
-    )
-    vec = FeatureVector(txn_count_1m=25, unique_cards_5m=12)
-    alert = await create_alert(redis_client, txn, vec, -0.75, True)
-    assert alert is not None
-    assert alert.merchant_id == "merch_001"
-    assert alert.severity == "high"
-    assert "txn_count_1m" in alert.triggered_features
+async def test_create_real_alert(redis_client):
+    alert = await create_real_alert(redis_client, FakeTxn(), -0.9)
+    assert alert["severity"] == "high"
+    assert alert["is_true_fraud"] is True
+
+    stored = json.loads(await redis_client.lindex("alerts:recent", 0))
+    assert stored["alert_id"] == alert["alert_id"]
