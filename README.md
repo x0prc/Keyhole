@@ -1,6 +1,6 @@
 # 🔑 Keyhole
 
-Real-time fraud detection for payment streams. Isolation Forest over Kafka, with honest held-out metrics and a live ops dashboard.
+Real-time fraud detection for payment streams. RandomForest over Kafka, with honest held-out metrics and a live ops dashboard.
 
 **Razorpay AI Buildathon — Track 02: AI Risk Manager** · defense-only
 
@@ -10,19 +10,19 @@ Held-out evaluation on the last 20% of the [Kaggle creditcardfraud](https://www.
 
 | Precision | Recall | F1 | False-positive rate |
 |-----------|--------|----|---------------------|
-| 0.051     | 0.184  | 0.079 | 0.0046 (0.5% target) |
+| 0.900     | 0.735  | 0.809 | 0.0001 (0.01%) |
 
-Operating point is calibrated on training scores, not hand-tuned. Full FPR↔recall sweep in `notebooks/keyhole_training.ipynb`.
+Time-ordered split, no leakage: first 64% of time = fit, next 16% = threshold tuning only, last 20% = held-out test (streamed live). Threshold policy: max recall at precision ≥ 0.8. Full sweep in `notebooks/keyhole_training.ipynb`.
 
 ## Architecture
 
 ```
-transactions ──▶ Kafka ──▶ worker ──▶ Isolation Forest ──▶ Redis ──▶ FastAPI ──▶ dashboard
- (Kaggle CSV     (stream)   (scorer)   (29 real features)   (state)   (REST+WS)    (bento UI)
+transactions ──▶ Kafka ──▶ worker ──▶ RandomForest ──▶ Redis ──▶ FastAPI ──▶ dashboard
+ (Kaggle CSV     (stream)   (scorer)   (29 real features)  (state)   (REST+WS)    (bento UI)
   replay, 500x)
 ```
 
-4 containers, one command. First 80% of dataset time = train (normal txns only), last 20% = live held-out stream with ground-truth labels driving the live precision/recall.
+4 containers, one command. Live precision/recall on the dashboard is computed against ground-truth labels as the held-out stream replays.
 
 ## Quickstart
 

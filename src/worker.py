@@ -9,7 +9,7 @@ from redis.asyncio import Redis
 from src import config
 from src.detector import FraudDetector
 from src.metrics_tracker import record_prediction
-from src.replay import RealTransaction
+from src.replay import RealTransaction, build_feature_vector
 from src.alerts import create_real_alert
 
 
@@ -48,8 +48,7 @@ class DetectionWorker:
             txn = RealTransaction(**data)
 
             # 29-dim real feature vector: V1..V28 + log-amount
-            import numpy as np
-            x = np.array(txn.v_features + [np.log1p(txn.amount)], dtype=np.float64)
+            x = build_feature_vector(txn.amount, txn.v_features)
             is_fraud, score = self.detector.predict_vector(x)
 
             # Ground-truth metrics (labels never influence the model)

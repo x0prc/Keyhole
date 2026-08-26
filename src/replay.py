@@ -11,6 +11,7 @@ import time
 import uuid
 from datetime import datetime, timezone
 
+import numpy as np
 from aiokafka import AIOKafkaProducer
 from pydantic import BaseModel, Field
 
@@ -31,6 +32,11 @@ class RealTransaction(BaseModel):
     currency: str = "EUR"
     v_features: list[float]    # V1..V28 — real PCA features from the dataset
     is_fraud: bool             # ground-truth label (metrics only — model never sees it)
+
+
+def build_feature_vector(amount: float, v: list[float]) -> np.ndarray:
+    """29-dim: V1..V28 + log1p(amount) — log-scale tames heavy-tailed amounts."""
+    return np.array(v + [np.log1p(amount)], dtype=np.float64)
 
 
 def iter_dataset(csv_path: str = CSV_PATH):

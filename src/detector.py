@@ -71,13 +71,21 @@ class FraudDetector:
         return score > 0.5, score
 
     def predict_vector(self, x_raw: np.ndarray) -> tuple[bool, float]:
-        """Score a raw feature vector (real-data path: V1..V28 + log-amount)."""
+        """Score a raw feature vector (real-data path: V1..V28 + log-amount).
+
+        Supports both supervised classifiers (predict_proba, fraud prob >
+        threshold) and Isolation Forest (decision_function, score < threshold).
+        Returns (is_fraud, display_score) where display_score is negative
+        for anomalies so downstream severity ranking stays consistent.
+        """
         x = x_raw.reshape(1, -1)
 
-        # Try ML first
         if self.model is not None and self.scaler is not None:
             try:
                 x_scaled = self.scaler.transform(x)
+                if hasattr(self.model, "predict_proba"):
+                    proba = float(self.model.predict_proba(x_scaled)[0, 1])
+                    return proba >= self.threshold, -proba  # negate: lower = worse
                 score = float(self.model.decision_function(x_scaled)[0])
                 return score < self.threshold, score
             except Exception:
