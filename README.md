@@ -1,53 +1,54 @@
-# 🔑 Keyhole — Fraud Spike Detector
+# 🔑 Keyhole
 
-Real-time fraud spike detection system for **Razorpay AI Buildathon 2025** (Track 02: AI Risk Manager).
+Real-time fraud detection for payment streams. Isolation Forest over Kafka, with honest held-out metrics and a live ops dashboard.
 
-## What It Does
+**Razorpay AI Buildathon — Track 02: AI Risk Manager** · defense-only
 
-Detects fraudulent card transactions in a live stream:
-- Trained on the **Kaggle Credit Card Fraud dataset** (284,807 real transactions, 492 frauds)
-- Isolation Forest over 29 real PCA features (V1–V28) + log-scaled amount
-- **Honest held-out evaluation**: first 80% of the dataset's 48h time span = training (normal only), last 20% = live stream with ground-truth labels
-- Threshold calibrated on train data to a target false-positive rate — precision/recall reported live on the dashboard
+## Results
+
+Held-out evaluation on the last 20% of the [Kaggle creditcardfraud](https://www.kaggle.com/datasets/mlg-ulb/creditcardfraud) time span (73,766 real transactions, 98 frauds) — the model never saw these during training:
+
+| Precision | Recall | F1 | False-positive rate |
+|-----------|--------|----|---------------------|
+| 0.051     | 0.184  | 0.079 | 0.0046 (0.5% target) |
+
+Operating point is calibrated on training scores, not hand-tuned. Full FPR↔recall sweep in `notebooks/keyhole_training.ipynb`.
 
 ## Architecture
 
-4-container setup: Kafka (streaming), Zookeeper (coordination), Redis (state), App (detection + API + dashboard).
+```
+transactions ──▶ Kafka ──▶ worker ──▶ Isolation Forest ──▶ Redis ──▶ FastAPI ──▶ dashboard
+ (Kaggle CSV     (stream)   (scorer)   (29 real features)   (state)   (REST+WS)    (bento UI)
+  replay, 500x)
+```
 
-## Quick Start
+4 containers, one command. First 80% of dataset time = train (normal txns only), last 20% = live held-out stream with ground-truth labels driving the live precision/recall.
+
+## Quickstart
 
 ```bash
-# 1. Clone and enter
-cd Keyhole
+# 1. Get the dataset (needs Kaggle API key)
+cd data && kaggle datasets download -d mlg-ulb/creditcardfraud && unzip creditcardfraud.zip && cd ..
 
-# 2. Get the dataset (requires Kaggle API key in ~/.kaggle/credentials.json)
-cd data && kaggle datasets download -d mlg-ulb/creditcardfraud && unzip -o creditcardfraud.zip && cd ..
+# 2. Train (pick one)
+python -m scripts.train_model          # local
+# or run notebooks/keyhole_training.ipynb on Kaggle and drop the artifact into models/
 
-# 3. Train the model — pick ONE:
-#    a) Kaggle notebook (recommended, free compute): open notebooks/keyhole_training.ipynb
-#       on kaggle.com, run all cells, download keyhole_model.joblib → models/isolation_forest.joblib
-#    b) Local: pip install -e . && python -m scripts.train_model
-
-# 4. Start everything
+# 3. Run everything
 docker compose up --build
 
-# 5. Open dashboard
+# 4. Dashboard
 open http://localhost:8000/dashboard/
 ```
 
-## Tech Stack
+## Stack
 
-- Python 3.11 + asyncio
-- Kafka (Confluent 7.5) + aiokafka
-- Redis 7 + redis-py (async)
-- scikit-learn Isolation Forest
-- FastAPI + WebSocket
-- Vanilla HTML/JS dashboard
+Python 3.11 · aiokafka · Redis · scikit-learn · FastAPI + WebSocket · vanilla JS
 
-## Evaluation
+## Docs
 
-Held-out 20% (73,766 transactions, 98 frauds) — see `notebooks/keyhole_training.ipynb` for the operating-point sweep. Default operating point targets 0.5% FPR.
+- `DESIGN.md` — architecture & threat model
+- `notebooks/keyhole_training.ipynb` — reproducible training + evaluation
+- `tests/` — 9 passing (`pytest`)
 
-## License
-
-MIT — Built for Razorpay AI Buildathon.
+MIT License.
